@@ -1,0 +1,7 @@
+.turbo
+node_modules
+.next
+coverage
+playwright-report
+test-results
+.DS_Store
