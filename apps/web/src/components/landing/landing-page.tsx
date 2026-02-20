@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Container } from "@/components/layout/container";
 import { Section } from "@/components/layout/section";
+import { SmoothScrollLink } from "@/components/landing/smooth-scroll-link";
 
 const features = [
   {
@@ -87,7 +88,7 @@ const plans = [
 export function LandingPage() {
   return (
     <main className="min-h-screen bg-[#F3F5F9] text-[#171E2D]">
-      <header className="border-b border-[#E7EBF2] bg-white/95">
+      <header className="sticky top-0 z-40 border-b border-[#E7EBF2] bg-white/95 backdrop-blur">
         <Container className="flex h-14 items-center gap-6">
           <a href="#" className="flex items-center gap-2 text-sm font-extrabold text-[#1F6FEB]">
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] bg-[#1F6FEB] text-[11px] text-white">◇</span>
@@ -95,10 +96,18 @@ export function LandingPage() {
           </a>
 
           <nav aria-label="Main navigation" className="hidden items-center gap-7 text-[11px] font-medium text-[#5D6780] md:flex">
-            <a className="transition-colors hover:text-[#1F6FEB]" href="#features">Features</a>
-            <a className="transition-colors hover:text-[#1F6FEB]" href="#solutions">Solutions</a>
-            <a className="transition-colors hover:text-[#1F6FEB]" href="#pricing">Pricing</a>
-            <a className="transition-colors hover:text-[#1F6FEB]" href="#resources">Resources</a>
+            <SmoothScrollLink className="transition-colors hover:text-[#1F6FEB]" href="#features">
+              Features
+            </SmoothScrollLink>
+            <SmoothScrollLink className="transition-colors hover:text-[#1F6FEB]" href="#solutions">
+              Solutions
+            </SmoothScrollLink>
+            <SmoothScrollLink className="transition-colors hover:text-[#1F6FEB]" href="#pricing">
+              Pricing
+            </SmoothScrollLink>
+            <SmoothScrollLink className="transition-colors hover:text-[#1F6FEB]" href="#resources">
+              Resources
+            </SmoothScrollLink>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
@@ -217,7 +226,7 @@ export function LandingPage() {
         </Container>
       </Section>
 
-      <Section id="features" className="py-20">
+      <Section id="features" className="scroll-mt-24 py-20">
         <Container>
           <div className="mx-auto max-w-3xl text-center">
             <p className="inline-flex rounded-full bg-[#E9F1FF] px-3 py-1 text-[10px] font-bold text-[#1F6FEB]">
@@ -251,7 +260,7 @@ export function LandingPage() {
         </Container>
       </Section>
 
-      <Section id="solutions" className="pt-0">
+      <Section id="solutions" className="scroll-mt-24 pt-0">
         <Container>
           <article className="rounded-lg border border-[#E3E9F3] bg-white p-7 shadow-[0_1px_0_0_rgba(11,23,51,0.02)]">
             <p className="text-xs font-bold tracking-wide text-[#1F6FEB]">MULTI-FORMAT EXPORTS</p>
@@ -284,7 +293,7 @@ export function LandingPage() {
         </Container>
       </Section>
 
-      <Section id="pricing" className="py-24">
+      <Section id="pricing" className="scroll-mt-24 py-24">
         <Container>
           <h2 className="text-center text-4xl font-extrabold tracking-[-0.02em] text-[#1A2232]">Simple, transparent pricing</h2>
           <p className="mt-3 text-center text-base text-[#5A667D]">
@@ -375,7 +384,7 @@ export function LandingPage() {
         </Container>
       </Section>
 
-      <footer id="resources" className="border-t border-[#E2E8F2] bg-[#F8FAFD] py-12">
+      <footer id="resources" className="scroll-mt-24 border-t border-[#E2E8F2] bg-[#F8FAFD] py-12">
         <Container className="grid gap-10 md:grid-cols-[1.3fr_1fr_1fr_1fr]">
           <div>
             <a href="#" className="flex items-center gap-2 text-lg font-extrabold text-[#1F6FEB]">
