@@ -1,0 +1,12 @@
+{
+  "name": "@docuforge/api",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "start:dev": "echo 'Scaffold NestJS app next' && exit 0",
+    "build": "echo 'Scaffold NestJS app next' && exit 0",
+    "lint": "echo 'Scaffold NestJS app next' && exit 0",
+    "test": "echo 'Scaffold NestJS app next' && exit 0",
+    "typecheck": "echo 'Scaffold NestJS app next' && exit 0"
+  }
+}
