@@ -1,12 +1,15 @@
 {
   "name": "@docuforge/api",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "type": "module",
   "scripts": {
-    "start:dev": "echo 'Scaffold NestJS app next' && exit 0",
-    "build": "echo 'Scaffold NestJS app next' && exit 0",
-    "lint": "echo 'Scaffold NestJS app next' && exit 0",
-    "test": "echo 'Scaffold NestJS app next' && exit 0",
-    "typecheck": "echo 'Scaffold NestJS app next' && exit 0"
+    "dev": "node --watch src/server.mjs",
+    "start:dev": "node --watch src/server.mjs",
+    "start": "node src/server.mjs",
+    "build": "echo 'No build step for API yet' && exit 0",
+    "lint": "echo 'No lint configured for API yet' && exit 0",
+    "test": "echo 'No tests configured for API yet' && exit 0",
+    "typecheck": "echo 'No typecheck configured for API yet' && exit 0"
   }
 }
