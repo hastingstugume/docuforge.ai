@@ -1,13 +1,23 @@
 import type { AuthResponse, LoginInput, SignupInput } from "@docuforge/shared";
 import { parseAuthResponse, parseLoginInput, parseSignupInput } from "@/lib/validation/auth";
 
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000").replace(
-  /\/$/,
-  "",
-);
+function resolveApiBaseUrl(): string {
+  const configuredBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl.replace(/\/$/, "");
+  }
+
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    const host = hostname === "localhost" ? "127.0.0.1" : hostname;
+    return `http://${host}:4000`;
+  }
+
+  return "http://127.0.0.1:4000";
+}
 
 function getApiUrl(pathname: string): string {
-  return `${apiBaseUrl}${pathname}`;
+  return `${resolveApiBaseUrl()}${pathname}`;
 }
 
 async function parseErrorMessage(response: Response): Promise<string | null> {

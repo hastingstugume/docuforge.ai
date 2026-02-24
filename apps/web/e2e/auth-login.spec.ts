@@ -8,5 +8,5 @@ test("login redirects to dashboard", async ({ page }) => {
   await page.getByRole("button", { name: "Sign in to Dashboard" }).click();
 
   await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByRole("heading", { name: "Welcome to DocuForge" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 });
