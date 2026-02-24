@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
-const host = process.env.HOST ?? "127.0.0.1";
+const host = process.env.HOST ?? "0.0.0.0";
 const port = Number(process.env.PORT ?? 4000);
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGIN ?? "http://127.0.0.1:3000,http://localhost:3000")
@@ -16,6 +16,25 @@ function emailLooksValid(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function isAllowedLanOrigin(origin) {
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return false;
+    }
+
+    const match = /^192\.168\.1\.(\d{1,3})$/.exec(parsed.hostname);
+    if (!match) {
+      return false;
+    }
+
+    const lastOctet = Number(match[1]);
+    return Number.isInteger(lastOctet) && lastOctet >= 1 && lastOctet <= 100;
+  } catch {
+    return false;
+  }
+}
+
 function getCorsHeaders(origin) {
   const headers = {
     "Access-Control-Allow-Headers": "content-type, authorization",
@@ -23,7 +42,7 @@ function getCorsHeaders(origin) {
     Vary: "Origin",
   };
 
-  if (origin && allowedOrigins.has(origin)) {
+  if (origin && (allowedOrigins.has(origin) || isAllowedLanOrigin(origin))) {
     headers["Access-Control-Allow-Origin"] = origin;
   }
 
