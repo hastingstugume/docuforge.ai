@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@docuforge/shared": ["../../packages/shared/src/index.ts"],
+      "@docuforge/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": [
