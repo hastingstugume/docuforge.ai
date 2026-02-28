@@ -13,6 +13,7 @@ const allowedOrigins = new Set(
 const sessions = new Map();
 const projects = [];
 const activityEvents = [];
+const documents = [];
 const defaultOwnerId = "system-owner";
 const defaultActorName = "System";
 
@@ -26,6 +27,7 @@ const projectTypes = new Set([
   "general",
 ]);
 const projectStatuses = new Set(["active", "draft", "archived"]);
+const documentStatuses = new Set(["draft", "review", "published"]);
 
 function emailLooksValid(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -154,6 +156,19 @@ function validateActivityEvent(event) {
     typeof event.actorId === "string" &&
     typeof event.actorName === "string" &&
     isValidIsoDate(event.occurredAt)
+  );
+}
+
+function validateDocument(document) {
+  return (
+    document &&
+    typeof document.id === "string" &&
+    typeof document.projectId === "string" &&
+    typeof document.title === "string" &&
+    typeof document.summary === "string" &&
+    documentStatuses.has(document.status) &&
+    typeof document.version === "string" &&
+    isValidIsoDate(document.updatedAt)
   );
 }
 
@@ -401,6 +416,77 @@ const server = createServer(async (request, response) => {
 
     const data = activityEvents.filter(validateActivityEvent).slice(0, limit);
     sendJson(response, 200, { ok: true, data }, origin);
+    return;
+  }
+
+  if (method === "GET" && pathname === "/documents") {
+    const status = url.searchParams.get("status");
+    const search = url.searchParams.get("search")?.trim().toLowerCase() ?? "";
+    const page = parsePositiveInteger(url.searchParams.get("page"), 1);
+    const pageSize = parsePositiveInteger(url.searchParams.get("pageSize"), 20);
+    const sortBy = url.searchParams.get("sortBy") ?? "updatedAt";
+    const sortOrder = url.searchParams.get("sortOrder") ?? "desc";
+
+    if (status && !documentStatuses.has(status)) {
+      sendJson(response, 400, { ok: false, error: "Invalid status query." }, origin);
+      return;
+    }
+
+    if (page === null || pageSize === null || pageSize > 100) {
+      sendJson(response, 400, { ok: false, error: "Invalid pagination query." }, origin);
+      return;
+    }
+
+    if (!["updatedAt", "title"].includes(sortBy)) {
+      sendJson(response, 400, { ok: false, error: "Invalid sortBy query." }, origin);
+      return;
+    }
+
+    if (sortOrder !== "asc" && sortOrder !== "desc") {
+      sendJson(response, 400, { ok: false, error: "Invalid sortOrder query." }, origin);
+      return;
+    }
+
+    const filtered = documents
+      .filter(validateDocument)
+      .filter((document) => (status ? document.status === status : true))
+      .filter((document) =>
+        search
+          ? document.title.toLowerCase().includes(search) ||
+            document.summary.toLowerCase().includes(search)
+          : true,
+      )
+      .sort((a, b) => {
+        let left;
+        let right;
+        if (sortBy === "title") {
+          left = a.title.toLowerCase();
+          right = b.title.toLowerCase();
+        } else {
+          left = new Date(a.updatedAt).getTime();
+          right = new Date(b.updatedAt).getTime();
+        }
+
+        if (left === right) return 0;
+        const result = left > right ? 1 : -1;
+        return sortOrder === "asc" ? result : -result;
+      });
+
+    const total = filtered.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const start = (page - 1) * pageSize;
+    const data = filtered.slice(start, start + pageSize);
+
+    sendJson(
+      response,
+      200,
+      {
+        ok: true,
+        data,
+        meta: { total, page, pageSize, totalPages },
+      },
+      origin,
+    );
     return;
   }
 

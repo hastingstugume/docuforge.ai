@@ -7,6 +7,8 @@ import {
   getProjectResponseSchema,
   listActivityEventsQuerySchema,
   listActivityEventsResponseSchema,
+  listDocumentsQuerySchema,
+  listDocumentsResponseSchema,
   listProjectsQuerySchema,
   listProjectsResponseSchema,
   loginInputSchema,
@@ -15,6 +17,8 @@ import {
   updateProjectInputSchema,
   updateProjectResponseSchema,
   type ActivityEvent,
+  type Document,
+  type DocumentStatus,
   type Project,
   type ProjectStatus,
   type ProjectType,
@@ -91,7 +95,56 @@ const seededProjects: Project[] = [
   },
 ];
 
+const seededDocuments: Document[] = [
+  {
+    id: "doc-api-reference-v2",
+    projectId: "proj-nexus-api",
+    title: "API Reference v2.0",
+    summary: "Complete technical documentation for gateway APIs.",
+    status: "published",
+    version: "v2.0.4",
+    updatedAt: "2026-02-28T11:30:00.000Z",
+  },
+  {
+    id: "doc-system-architecture-design",
+    projectId: "proj-cloudscale",
+    title: "System Architecture Design",
+    summary: "High-level overview of the platform topology.",
+    status: "review",
+    version: "v1.2.0",
+    updatedAt: "2026-02-27T14:30:00.000Z",
+  },
+  {
+    id: "doc-user-onboarding-flow",
+    projectId: "proj-cloudscale",
+    title: "User Onboarding Flow",
+    summary: "Detailed functional requirements for onboarding.",
+    status: "draft",
+    version: "v0.8.5",
+    updatedAt: "2026-02-25T10:00:00.000Z",
+  },
+  {
+    id: "doc-database-schema-migration",
+    projectId: "proj-storage-v4",
+    title: "Database Schema Migration Guide",
+    summary: "Instructions and scripts for migrating schema safely.",
+    status: "published",
+    version: "v1.0.0",
+    updatedAt: "2026-02-21T09:15:00.000Z",
+  },
+  {
+    id: "doc-security-compliance-audit",
+    projectId: "proj-compliance-auditor",
+    title: "Security & Compliance Audit",
+    summary: "Internal documentation covering SOC2 controls.",
+    status: "review",
+    version: "v2.1.0",
+    updatedAt: "2026-02-14T13:45:00.000Z",
+  },
+];
+
 let projects = [...seededProjects];
+let documents = [...seededDocuments];
 const seededActivityEvents: ActivityEvent[] = [
   {
     id: "activity-1",
@@ -175,6 +228,27 @@ function parseListProjectsQuery(requestUrl: string) {
     search: url.searchParams.get("search") ?? undefined,
     status: (url.searchParams.get("status") ?? undefined) as ProjectStatus | undefined,
     type: (url.searchParams.get("type") ?? undefined) as ProjectType | undefined,
+    page: pageRaw ? Number(pageRaw) : undefined,
+    pageSize: pageSizeRaw ? Number(pageSizeRaw) : undefined,
+    sortBy: url.searchParams.get("sortBy") ?? undefined,
+    sortOrder: url.searchParams.get("sortOrder") ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid query params." };
+  }
+
+  return { ok: true as const, data: parsed.data };
+}
+
+function parseListDocumentsQuery(requestUrl: string) {
+  const url = new URL(requestUrl);
+  const pageRaw = url.searchParams.get("page");
+  const pageSizeRaw = url.searchParams.get("pageSize");
+
+  const parsed = listDocumentsQuerySchema.safeParse({
+    search: url.searchParams.get("search") ?? undefined,
+    status: (url.searchParams.get("status") ?? undefined) as DocumentStatus | undefined,
     page: pageRaw ? Number(pageRaw) : undefined,
     pageSize: pageSizeRaw ? Number(pageSizeRaw) : undefined,
     sortBy: url.searchParams.get("sortBy") ?? undefined,
@@ -325,6 +399,55 @@ export const handlers = [
     );
   }),
 
+  http.get("*/documents", ({ request }) => {
+    const query = parseListDocumentsQuery(request.url);
+    if (!query.ok) {
+      return HttpResponse.json({ ok: false, error: query.error }, { status: 400 });
+    }
+
+    const search = query.data.search?.toLowerCase() ?? "";
+    const sortBy = query.data.sortBy ?? "updatedAt";
+    const sortOrder = query.data.sortOrder ?? "desc";
+    const page = query.data.page ?? 1;
+    const pageSize = query.data.pageSize ?? 20;
+
+    const filtered = documents
+      .filter((document) => (query.data.status ? document.status === query.data.status : true))
+      .filter((document) =>
+        search
+          ? document.title.toLowerCase().includes(search) ||
+            document.summary.toLowerCase().includes(search)
+          : true,
+      )
+      .sort((a, b) => {
+        let left: string | number;
+        let right: string | number;
+        if (sortBy === "title") {
+          left = a.title.toLowerCase();
+          right = b.title.toLowerCase();
+        } else {
+          left = new Date(a.updatedAt).getTime();
+          right = new Date(b.updatedAt).getTime();
+        }
+        if (left === right) return 0;
+        const result = left > right ? 1 : -1;
+        return sortOrder === "asc" ? result : -result;
+      });
+
+    const total = filtered.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const start = (page - 1) * pageSize;
+    const data = filtered.slice(start, start + pageSize);
+
+    return HttpResponse.json(
+      listDocumentsResponseSchema.parse({
+        ok: true,
+        data,
+        meta: { total, page, pageSize, totalPages },
+      }),
+    );
+  }),
+
   http.get("*/projects/:projectId", ({ params }) => {
     const projectId = String(params.projectId ?? "");
     const project = projects.find((item) => item.id === projectId);
@@ -428,6 +551,7 @@ export const handlers = [
 
 export function resetMockData(): void {
   projects = [...seededProjects];
+  documents = [...seededDocuments];
   activityEvents = [...seededActivityEvents];
   sessions.clear();
 }

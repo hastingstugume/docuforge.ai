@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { activityEventSchema, projectSchema, projectStatusSchema, projectTypeSchema } from "./entities";
+import {
+  activityEventSchema,
+  documentSchema,
+  documentStatusSchema,
+  projectSchema,
+  projectStatusSchema,
+  projectTypeSchema,
+} from "./entities";
 import { userSchema } from "./auth";
 
 export const apiErrorSchema = z.object({
@@ -28,6 +35,28 @@ export const listProjectsQuerySchema = z.object({
   pageSize: z.number().int().positive().max(100).optional(),
   sortBy: z.enum(["updatedAt", "createdAt", "name"]).optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
+});
+
+export const listDocumentsQuerySchema = z.object({
+  search: z.string().trim().optional(),
+  status: documentStatusSchema.optional(),
+  page: z.number().int().positive().optional(),
+  pageSize: z.number().int().positive().max(100).optional(),
+  sortBy: z.enum(["updatedAt", "title"]).optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
+});
+
+export const listDocumentsResponseSchema = z.object({
+  ok: z.literal(true),
+  data: z.array(documentSchema),
+  meta: z
+    .object({
+      total: z.number().int().nonnegative(),
+      page: z.number().int().positive(),
+      pageSize: z.number().int().positive(),
+      totalPages: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 
 export const listActivityEventsQuerySchema = z.object({
@@ -105,6 +134,8 @@ export const meResponseSchema = z.object({
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;
 export type ListProjectsResponse = z.infer<typeof listProjectsResponseSchema>;
+export type ListDocumentsQuery = z.infer<typeof listDocumentsQuerySchema>;
+export type ListDocumentsResponse = z.infer<typeof listDocumentsResponseSchema>;
 export type ListActivityEventsQuery = z.infer<typeof listActivityEventsQuerySchema>;
 export type ListActivityEventsResponse = z.infer<typeof listActivityEventsResponseSchema>;
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
