@@ -112,6 +112,19 @@ function parseProjectPatchInput(body) {
   return { ok: true, data };
 }
 
+function parseProjectDeleteInput(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { ok: false, error: "Invalid delete payload." };
+  }
+
+  const confirmName = typeof body.confirmName === "string" ? body.confirmName.trim() : "";
+  if (confirmName.length === 0) {
+    return { ok: false, error: "Project name confirmation is required." };
+  }
+
+  return { ok: true, data: { confirmName } };
+}
+
 function validateProject(project) {
   return (
     project &&
@@ -500,16 +513,34 @@ const server = createServer(async (request, response) => {
   }
 
   if (method === "DELETE" && pathname.startsWith("/projects/")) {
-    const projectId = getProjectIdFromPath(pathname);
-    const index = projects.findIndex((item) => item.id === projectId && validateProject(item));
-    if (index < 0) {
-      sendJson(response, 404, { ok: false, error: "Project not found." }, origin);
+    try {
+      const projectId = getProjectIdFromPath(pathname);
+      const index = projects.findIndex((item) => item.id === projectId && validateProject(item));
+      if (index < 0) {
+        sendJson(response, 404, { ok: false, error: "Project not found." }, origin);
+        return;
+      }
+
+      const body = await readJsonBody(request);
+      const parsed = parseProjectDeleteInput(body);
+      if (!parsed.ok) {
+        sendJson(response, 400, { ok: false, error: parsed.error }, origin);
+        return;
+      }
+
+      const project = projects[index];
+      if (parsed.data.confirmName !== project.name) {
+        sendJson(response, 400, { ok: false, error: "Project name confirmation does not match." }, origin);
+        return;
+      }
+
+      projects.splice(index, 1);
+      sendJson(response, 200, { ok: true, data: { id: projectId } }, origin);
+      return;
+    } catch {
+      sendJson(response, 400, { ok: false, error: "Invalid delete payload" }, origin);
       return;
     }
-
-    projects.splice(index, 1);
-    sendJson(response, 200, { ok: true, data: { id: projectId } }, origin);
-    return;
   }
 
   sendJson(response, 404, { ok: false, error: "Not found" }, origin);

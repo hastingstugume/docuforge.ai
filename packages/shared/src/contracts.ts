@@ -77,6 +77,10 @@ export const updateProjectResponseSchema = z.object({
   data: projectSchema,
 });
 
+export const deleteProjectInputSchema = z.object({
+  confirmName: z.string().trim().min(1, "Project name confirmation is required."),
+});
+
 export const deleteProjectResponseSchema = z.object({
   ok: z.literal(true),
   data: z.object({
@@ -97,5 +101,6 @@ export type CreateProjectResponse = z.infer<typeof createProjectResponseSchema>;
 export type GetProjectResponse = z.infer<typeof getProjectResponseSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectInputSchema>;
 export type UpdateProjectResponse = z.infer<typeof updateProjectResponseSchema>;
+export type DeleteProjectInput = z.infer<typeof deleteProjectInputSchema>;
 export type DeleteProjectResponse = z.infer<typeof deleteProjectResponseSchema>;
 export type MeResponse = z.infer<typeof meResponseSchema>;

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Archive,
+  CircleAlert,
   CircleDot,
   Clock3,
   FilePlus2,
@@ -17,10 +18,11 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
   ChevronDown,
 } from "lucide-react";
 import type { Project, ProjectStatus, ProjectType } from "@docuforge/shared";
-import { useProjects } from "@/lib/api/projects";
+import { useDeleteProject, useProjects } from "@/lib/api/projects";
 
 const iconCycle: LucideIcon[] = [FilePlus2, FilePlus2, Folder, FileText, ShieldCheck, Archive];
 const toneCycle = ["orange", "blue", "indigo", "slate", "green", "violet"] as const;
@@ -40,28 +42,36 @@ const typeOptions: Array<{ label: string; value: ProjectType | "all" }> = [
   { label: "Type: Migration", value: "migration" },
   { label: "Type: General", value: "general" },
 ];
+const EMPTY_PROJECTS: Project[] = [];
 
 export function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "all">("all");
-  const { data: projects = [], isLoading, isError, error } = useProjects();
+  const [page, setPage] = useState(1);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [deleteTargetProject, setDeleteTargetProject] = useState<Project | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const pageSize = 6;
+  const deleteProjectMutation = useDeleteProject();
+  const deferredSearchTerm = useDeferredValue(searchTerm.trim());
 
-  const filteredProjects = useMemo(() => {
-    const normalized = searchTerm.trim().toLowerCase();
+  const projectsQuery = useMemo(
+    () => ({
+      search: deferredSearchTerm || undefined,
+      status: statusFilter === "all" ? undefined : statusFilter,
+      type: typeFilter === "all" ? undefined : typeFilter,
+      page,
+      pageSize,
+      sortBy: "updatedAt" as const,
+      sortOrder: "desc" as const,
+    }),
+    [deferredSearchTerm, page, statusFilter, typeFilter],
+  );
 
-    return projects.filter(
-      (project) => {
-        const matchesSearch =
-          normalized.length === 0 ||
-          project.name.toLowerCase().includes(normalized) ||
-          project.description.toLowerCase().includes(normalized);
-        const matchesStatus = statusFilter === "all" || project.status === statusFilter;
-        const matchesType = typeFilter === "all" || project.type === typeFilter;
-        return matchesSearch && matchesStatus && matchesType;
-      },
-    );
-  }, [projects, searchTerm, statusFilter, typeFilter]);
+  const { data: projectsResponse, isLoading, isError, error } = useProjects(projectsQuery);
+  const projects = projectsResponse?.data ?? EMPTY_PROJECTS;
+  const meta = projectsResponse?.meta;
 
   const recentActivity = useMemo(() => {
     return [...projects]
@@ -85,19 +95,75 @@ export function ProjectsPage() {
       .slice(0, 3);
   }, [projects]);
 
-  const visibleProjects = filteredProjects.slice(0, 6);
-  const totalProjects = projects.length;
+  const visibleProjects = projects;
+  const totalProjects = meta?.total ?? projects.length;
+  const currentPage = meta?.page ?? page;
+  const totalPages = meta?.totalPages ?? (totalProjects > 0 ? 1 : 0);
 
   const statusOption = statusOptions.find((item) => item.value === statusFilter) ?? statusOptions[0];
   const typeOption = typeOptions.find((item) => item.value === typeFilter) ?? typeOptions[0];
 
   const hasActiveFilters = searchTerm.trim().length > 0 || statusFilter !== "all" || typeFilter !== "all";
+  const canGoPrevious = currentPage > 1;
+  const canGoNext = totalPages > 0 && currentPage < totalPages;
 
   function clearFilters() {
     setSearchTerm("");
     setStatusFilter("all");
     setTypeFilter("all");
+    setPage(1);
   }
+
+  function goToPreviousPage() {
+    if (!canGoPrevious) {
+      return;
+    }
+    setPage((previous) => Math.max(1, previous - 1));
+  }
+
+  function goToNextPage() {
+    if (!canGoNext) {
+      return;
+    }
+    setPage((previous) => previous + 1);
+  }
+
+  function handleDeleteProject(project: Project) {
+    setDeleteTargetProject(project);
+    setDeleteConfirmation("");
+    deleteProjectMutation.reset();
+  }
+
+  function closeDeleteDialog() {
+    if (deleteProjectMutation.isPending) {
+      return;
+    }
+    setDeleteTargetProject(null);
+    setDeleteConfirmation("");
+    deleteProjectMutation.reset();
+  }
+
+  function confirmProjectDelete() {
+    if (!deleteTargetProject) {
+      return;
+    }
+
+    deleteProjectMutation.mutate(
+      {
+        projectId: deleteTargetProject.id,
+        payload: { confirmName: deleteConfirmation.trim() },
+      },
+      {
+        onSuccess: () => {
+          setDeleteTargetProject(null);
+          setDeleteConfirmation("");
+        },
+      },
+    );
+  }
+
+  const isDeleteConfirmationMatch =
+    !!deleteTargetProject && deleteConfirmation.trim() === deleteTargetProject.name;
 
   return (
     <div className="flex flex-col gap-5">
@@ -121,16 +187,30 @@ export function ProjectsPage() {
             <div className="inline-flex h-9 items-center rounded-md border border-[#D9E0EC] bg-white px-1">
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-[#4E5A73]"
+                onClick={() => setViewMode("grid")}
+                className={[
+                  "inline-flex h-7 w-7 items-center justify-center rounded",
+                  viewMode === "grid"
+                    ? "bg-[#EEF4FF] text-[#2F68E8]"
+                    : "text-[#4E5A73] hover:bg-[#F4F7FC]",
+                ].join(" ")}
                 aria-label="Grid view"
+                aria-pressed={viewMode === "grid"}
               >
                 <Grid2x2 className="h-3.5 w-3.5" />
               </button>
               <span className="mx-0.5 h-4 w-px bg-[#E3E8F1]" />
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-[#8B96AC] hover:text-[#5C6881]"
+                onClick={() => setViewMode("list")}
+                className={[
+                  "inline-flex h-7 w-7 items-center justify-center rounded",
+                  viewMode === "list"
+                    ? "bg-[#EEF4FF] text-[#2F68E8]"
+                    : "text-[#8B96AC] hover:bg-[#F4F7FC] hover:text-[#5C6881]",
+                ].join(" ")}
                 aria-label="List view"
+                aria-pressed={viewMode === "list"}
               >
                 <List className="h-3.5 w-3.5" />
               </button>
@@ -151,7 +231,10 @@ export function ProjectsPage() {
             <input
               type="search"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) => {
+                setSearchTerm(event.target.value);
+                setPage(1);
+              }}
               placeholder="Filter projects by name, tags, or technology..."
               className="h-9 w-full rounded-md border border-[#DFE5F0] bg-white pl-9 pr-3 text-[13px] text-[#374359] outline-none placeholder:text-[#9BA7BA] focus:border-[#2F68E8] focus:ring-2 focus:ring-[#2F68E8]/15"
             />
@@ -160,14 +243,20 @@ export function ProjectsPage() {
             label={statusOption.label}
             widthClass="w-[120px]"
             value={statusFilter}
-            onChange={(value) => setStatusFilter(value as ProjectStatus | "all")}
+            onChange={(value) => {
+              setStatusFilter(value as ProjectStatus | "all");
+              setPage(1);
+            }}
             options={statusOptions}
           />
           <FilterSelect
             label={typeOption.label}
             widthClass="w-[132px]"
             value={typeFilter}
-            onChange={(value) => setTypeFilter(value as ProjectType | "all")}
+            onChange={(value) => {
+              setTypeFilter(value as ProjectType | "all");
+              setPage(1);
+            }}
             options={typeOptions}
           />
           <span className="hidden h-5 w-px bg-[#E1E7F1] lg:block" />
@@ -180,7 +269,12 @@ export function ProjectsPage() {
           </button>
         </div>
 
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          className={[
+            "mt-3 gap-3",
+            viewMode === "grid" ? "grid md:grid-cols-2 xl:grid-cols-3" : "flex flex-col",
+          ].join(" ")}
+        >
           <article className="rounded-lg border-[3px] border-dashed border-[#9CB1D0] bg-[#FBFCFE] p-4">
             <Link
               href="/dashboard/new"
@@ -235,10 +329,23 @@ export function ProjectsPage() {
                   project={project}
                   tone={getProjectTone(project, index)}
                   Icon={getProjectIcon(project, index)}
+                  onDelete={() => handleDeleteProject(project)}
+                  isDeleting={
+                    deleteProjectMutation.isPending &&
+                    deleteProjectMutation.variables?.projectId === project.id
+                  }
                 />
               ))
             : null}
         </div>
+
+        {deleteProjectMutation.isError ? (
+          <p className="mt-2 text-[12px] text-[#B13C49]">
+            {deleteProjectMutation.error instanceof Error
+              ? deleteProjectMutation.error.message
+              : "Unable to delete project."}
+          </p>
+        ) : null}
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#E6ECF4] pt-3 text-[12px] text-[#76839A]">
           <p>
@@ -248,22 +355,20 @@ export function ProjectsPage() {
           <div className="inline-flex items-center gap-1">
             <button
               type="button"
-              className="h-7 rounded-md border border-[#DCE3EE] px-2 text-[#95A0B4]"
+              onClick={goToPreviousPage}
+              disabled={!canGoPrevious}
+              className="h-7 rounded-md border border-[#DCE3EE] px-2 text-[#95A0B4] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Previous
             </button>
             <button type="button" className="h-7 rounded-md bg-[#2F68E8] px-2 text-white">
-              1
+              {currentPage}
             </button>
             <button
               type="button"
-              className="h-7 rounded-md border border-[#DCE3EE] px-2 text-[#6C7890]"
-            >
-              2
-            </button>
-            <button
-              type="button"
-              className="h-7 rounded-md border border-[#DCE3EE] px-2 text-[#6C7890]"
+              onClick={goToNextPage}
+              disabled={!canGoNext}
+              className="h-7 rounded-md border border-[#DCE3EE] px-2 text-[#6C7890] disabled:cursor-not-allowed disabled:opacity-60"
             >
               Next
             </button>
@@ -330,6 +435,65 @@ export function ProjectsPage() {
         </article>
       </section>
 
+      {deleteTargetProject ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40 px-4">
+          <div className="w-full max-w-[460px] rounded-xl border border-[#DFE5F0] bg-white p-5 shadow-[0_20px_60px_rgba(17,24,39,0.22)]">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#FFF2F4] text-[#B13C49]">
+                <CircleAlert className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-[18px] font-bold text-[#1F283A]">Delete Project</h2>
+                <p className="mt-1 text-[13px] leading-relaxed text-[#5E6B84]">
+                  This action cannot be undone. Type{" "}
+                  <span className="font-semibold text-[#27324A]">{deleteTargetProject.name}</span> to
+                  confirm deletion.
+                </p>
+              </div>
+            </div>
+
+            <label className="mt-4 block text-[12px] font-semibold text-[#4A5670]">
+              Confirm project name
+              <input
+                type="text"
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                autoFocus
+                className="mt-1 h-10 w-full rounded-md border border-[#DCE3EE] px-3 text-[13px] text-[#2E3A52] outline-none placeholder:text-[#9DA8BC] focus:border-[#2F68E8] focus:ring-2 focus:ring-[#2F68E8]/15"
+                placeholder={deleteTargetProject.name}
+              />
+            </label>
+
+            {deleteProjectMutation.isError ? (
+              <p className="mt-2 text-[12px] text-[#B13C49]">
+                {deleteProjectMutation.error instanceof Error
+                  ? deleteProjectMutation.error.message
+                  : "Unable to delete project."}
+              </p>
+            ) : null}
+
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeDeleteDialog}
+                disabled={deleteProjectMutation.isPending}
+                className="inline-flex h-9 items-center rounded-md border border-[#DCE3EE] bg-white px-3 text-[13px] font-medium text-[#54627D] hover:bg-[#F5F8FD] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmProjectDelete}
+                disabled={!isDeleteConfirmationMatch || deleteProjectMutation.isPending}
+                className="inline-flex h-9 items-center rounded-md bg-[#B13C49] px-3 text-[13px] font-semibold text-white hover:bg-[#9F3340] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleteProjectMutation.isPending ? "Deleting..." : "Confirm Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   );
 }
@@ -338,10 +502,14 @@ function ProjectCard({
   project,
   tone,
   Icon,
+  onDelete,
+  isDeleting,
 }: {
   project: Project;
   tone: (typeof toneCycle)[number];
   Icon: LucideIcon;
+  onDelete: () => void;
+  isDeleting: boolean;
 }) {
   return (
     <article className="rounded-lg border border-[#E3E8F1] bg-white p-4">
@@ -354,13 +522,32 @@ function ProjectCard({
         >
           <Icon className="h-4 w-4" />
         </span>
-        <button
-          type="button"
-          className="text-[#A1ABBC]"
-          aria-label={`Project actions for ${project.name}`}
-        >
-          <MoreVertical className="h-4 w-4" />
-        </button>
+        <details className="relative">
+          <summary
+            className="list-none cursor-pointer rounded p-1 text-[#A1ABBC] hover:bg-[#F2F6FC] [&::-webkit-details-marker]:hidden"
+            aria-label={`Project actions for ${project.name}`}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </summary>
+          <div className="absolute right-0 top-7 z-10 w-[148px] rounded-md border border-[#DFE5F0] bg-white p-1 shadow-[0_8px_30px_rgba(25,38,62,0.08)]">
+            <Link
+              href={`/dashboard/${project.id}`}
+              className="block rounded px-2 py-1.5 text-[12px] font-medium text-[#3D4A63] hover:bg-[#F4F7FD]"
+            >
+              Open Project
+            </Link>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={isDeleting}
+              aria-label={`Delete project ${project.name}`}
+              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-[12px] font-medium text-[#A73A46] hover:bg-[#FFF4F6] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isDeleting ? "Deleting..." : "Delete Project"}
+            </button>
+          </div>
+        </details>
       </div>
 
       <h2 className="mt-3 text-[16px] font-bold leading-tight text-[#1F283A]">{project.name}</h2>

@@ -59,4 +59,26 @@ describe("ProjectsPage", () => {
     const createCardCta = screen.getByRole("link", { name: /Create New Project/i });
     expect(createCardCta).toHaveAttribute("href", "/dashboard/new");
   });
+
+  it("deletes a project from card actions", async () => {
+    renderProjectsPage();
+
+    await screen.findByRole("heading", { name: "Nexus API Gateway" });
+    fireEvent.click(screen.getByLabelText("Project actions for Nexus API Gateway"));
+    fireEvent.click(screen.getByRole("button", { name: "Delete project Nexus API Gateway" }));
+    expect(screen.getByRole("heading", { name: "Delete Project" })).toBeInTheDocument();
+
+    const confirmButton = screen.getByRole("button", { name: "Confirm Delete" });
+    expect(confirmButton).toBeDisabled();
+
+    const confirmationInput = screen.getByLabelText("Confirm project name");
+    fireEvent.change(confirmationInput, { target: { value: "Nexus API Gateway" } });
+    expect(confirmButton).not.toBeDisabled();
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Nexus API Gateway" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("5 Total")).toBeInTheDocument();
+  });
 });

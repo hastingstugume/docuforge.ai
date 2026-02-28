@@ -2,6 +2,7 @@ import {
   authResponseSchema,
   createProjectInputSchema,
   createProjectResponseSchema,
+  deleteProjectInputSchema,
   deleteProjectResponseSchema,
   getProjectResponseSchema,
   listProjectsQuerySchema,
@@ -312,11 +313,33 @@ export const handlers = [
     return HttpResponse.json(updateProjectResponseSchema.parse({ ok: true, data: updated }));
   }),
 
-  http.delete("*/projects/:projectId", ({ params }) => {
+  http.delete("*/projects/:projectId", async ({ params, request }) => {
     const projectId = String(params.projectId ?? "");
     const index = projects.findIndex((item) => item.id === projectId);
     if (index < 0) {
       return HttpResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+    }
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return HttpResponse.json({ ok: false, error: "Invalid delete payload." }, { status: 400 });
+    }
+
+    const parsed = deleteProjectInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return HttpResponse.json(
+        { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid delete payload." },
+        { status: 400 },
+      );
+    }
+
+    if (parsed.data.confirmName !== projects[index].name) {
+      return HttpResponse.json(
+        { ok: false, error: "Project name confirmation does not match." },
+        { status: 400 },
+      );
     }
 
     projects.splice(index, 1);
