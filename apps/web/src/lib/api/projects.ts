@@ -1,18 +1,47 @@
 import {
   createProjectInputSchema,
   createProjectResponseSchema,
+  deleteProjectResponseSchema,
+  getProjectResponseSchema,
+  listProjectsQuerySchema,
   listProjectsResponseSchema,
+  updateProjectInputSchema,
+  updateProjectResponseSchema,
   type CreateProjectInput,
+  type ListProjectsQuery,
   type Project,
+  type UpdateProjectInput,
 } from "@docuforge/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson } from "@/lib/api/client";
 
 export const projectsQueryKey = ["projects"] as const;
+export const projectQueryKey = (projectId: string) => [...projectsQueryKey, projectId] as const;
 
-async function fetchProjects(): Promise<Project[]> {
-  const payload = await apiFetchJson("/projects");
+function toProjectsQueryString(query: ListProjectsQuery): string {
+  const normalized = listProjectsQuerySchema.parse(query);
+  const searchParams = new URLSearchParams();
+
+  if (normalized.search) searchParams.set("search", normalized.search);
+  if (normalized.status) searchParams.set("status", normalized.status);
+  if (normalized.type) searchParams.set("type", normalized.type);
+  if (normalized.page) searchParams.set("page", String(normalized.page));
+  if (normalized.pageSize) searchParams.set("pageSize", String(normalized.pageSize));
+  if (normalized.sortBy) searchParams.set("sortBy", normalized.sortBy);
+  if (normalized.sortOrder) searchParams.set("sortOrder", normalized.sortOrder);
+
+  const serialized = searchParams.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
+async function fetchProjects(query: ListProjectsQuery = {}): Promise<Project[]> {
+  const payload = await apiFetchJson(`/projects${toProjectsQueryString(query)}`);
   return listProjectsResponseSchema.parse(payload).data;
+}
+
+async function fetchProject(projectId: string): Promise<Project> {
+  const payload = await apiFetchJson(`/projects/${projectId}`);
+  return getProjectResponseSchema.parse(payload).data;
 }
 
 async function createProject(payload: CreateProjectInput): Promise<Project> {
@@ -25,10 +54,35 @@ async function createProject(payload: CreateProjectInput): Promise<Project> {
   return createProjectResponseSchema.parse(response).data;
 }
 
-export function useProjects() {
+async function updateProject(projectId: string, payload: UpdateProjectInput): Promise<Project> {
+  const parsedPayload = updateProjectInputSchema.parse(payload);
+  const response = await apiFetchJson(`/projects/${projectId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(parsedPayload),
+  });
+  return updateProjectResponseSchema.parse(response).data;
+}
+
+async function deleteProject(projectId: string): Promise<string> {
+  const response = await apiFetchJson(`/projects/${projectId}`, {
+    method: "DELETE",
+  });
+  return deleteProjectResponseSchema.parse(response).data.id;
+}
+
+export function useProjects(query: ListProjectsQuery = {}) {
   return useQuery({
-    queryKey: projectsQueryKey,
-    queryFn: fetchProjects,
+    queryKey: [...projectsQueryKey, query] as const,
+    queryFn: () => fetchProjects(query),
+  });
+}
+
+export function useProject(projectId: string) {
+  return useQuery({
+    queryKey: projectQueryKey(projectId),
+    queryFn: () => fetchProject(projectId),
+    enabled: projectId.length > 0,
   });
 }
 
@@ -37,7 +91,33 @@ export function useCreateProject() {
 
   return useMutation({
     mutationFn: createProject,
-    onSuccess: () => {
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectQueryKey(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+    },
+  });
+}
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ projectId, payload }: { projectId: string; payload: UpdateProjectInput }) =>
+      updateProject(projectId, payload),
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectQueryKey(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+    },
+  });
+}
+
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (projectId: string) => deleteProject(projectId),
+    onSuccess: (projectId) => {
+      queryClient.removeQueries({ queryKey: projectQueryKey(projectId) });
       void queryClient.invalidateQueries({ queryKey: projectsQueryKey });
     },
   });

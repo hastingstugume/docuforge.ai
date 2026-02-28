@@ -20,30 +20,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import type { Project, ProjectStatus, ProjectType } from "@docuforge/shared";
-import { useCreateProject, useProjects } from "@/lib/api/projects";
-
-const recentActivity = [
-  {
-    actor: "Sarah K.",
-    action: "published new version of",
-    target: "Nexus API Gateway",
-    time: "12m ago",
-  },
-  {
-    actor: "Mike T.",
-    action: "added 4 context features to",
-    target: "Payment Orchestrator",
-    time: "1h ago",
-  },
-  {
-    actor: "Automation",
-    action: "generated PDF export for",
-    target: "Compliance Auditor",
-    time: "3h ago",
-  },
-];
-
-const quickDocs = ["Architecture Overview v2", "Security Policy - ISO27k", "Endpoint Definitions"];
+import { useProjects } from "@/lib/api/projects";
 
 const iconCycle: LucideIcon[] = [FilePlus2, FilePlus2, Folder, FileText, ShieldCheck, Archive];
 const toneCycle = ["orange", "blue", "indigo", "slate", "green", "violet"] as const;
@@ -69,7 +46,6 @@ export function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
   const [typeFilter, setTypeFilter] = useState<ProjectType | "all">("all");
   const { data: projects = [], isLoading, isError, error } = useProjects();
-  const createProjectMutation = useCreateProject();
 
   const filteredProjects = useMemo(() => {
     const normalized = searchTerm.trim().toLowerCase();
@@ -87,17 +63,30 @@ export function ProjectsPage() {
     );
   }, [projects, searchTerm, statusFilter, typeFilter]);
 
+  const recentActivity = useMemo(() => {
+    return [...projects]
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .slice(0, 3)
+      .map((project) => ({
+        id: project.id,
+        event:
+          new Date(project.createdAt).getTime() === new Date(project.updatedAt).getTime()
+            ? "created"
+            : "updated",
+        target: project.name,
+        time: formatRelativeTime(project.updatedAt),
+      }));
+  }, [projects]);
+
+  const quickDocs = useMemo(() => {
+    return [...projects]
+      .filter((project) => project.docsCount > 0)
+      .sort((left, right) => right.docsCount - left.docsCount)
+      .slice(0, 3);
+  }, [projects]);
+
   const visibleProjects = filteredProjects.slice(0, 6);
   const totalProjects = projects.length;
-
-  function handleCreateProject() {
-    const nextProjectNumber = totalProjects + 1;
-    createProjectMutation.mutate({
-      name: `New Project ${nextProjectNumber}`,
-      description: "Start a fresh documentation context for new documentation assets.",
-      type: "general",
-    });
-  }
 
   const statusOption = statusOptions.find((item) => item.value === statusFilter) ?? statusOptions[0];
   const typeOption = typeOptions.find((item) => item.value === typeFilter) ?? typeOptions[0];
@@ -146,15 +135,13 @@ export function ProjectsPage() {
                 <List className="h-3.5 w-3.5" />
               </button>
             </div>
-            <button
-              type="button"
-              onClick={handleCreateProject}
-              disabled={createProjectMutation.isPending}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#2F68E8] px-3 text-[13px] font-semibold text-white transition hover:bg-[#275ad0] disabled:cursor-not-allowed disabled:opacity-70"
+            <Link
+              href="/dashboard/new"
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#2F68E8] px-3 text-[13px] font-semibold text-white transition hover:bg-[#275ad0]"
             >
               <Plus className="h-4 w-4" />
-              {createProjectMutation.isPending ? "Creating..." : "New Project"}
-            </button>
+              New Project
+            </Link>
           </div>
         </div>
 
@@ -195,18 +182,16 @@ export function ProjectsPage() {
 
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <article className="rounded-lg border-[3px] border-dashed border-[#9CB1D0] bg-[#FBFCFE] p-4">
-            <button
-              type="button"
-              onClick={handleCreateProject}
-              disabled={createProjectMutation.isPending}
-              className="flex h-full min-h-[164px] w-full flex-col items-center justify-center text-center disabled:opacity-70"
+            <Link
+              href="/dashboard/new"
+              className="flex h-full min-h-[164px] w-full flex-col items-center justify-center text-center"
             >
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-[#B7C5DD] bg-white text-[#667A9A]">
                 <Plus className="h-4 w-4" strokeWidth={3} />
               </span>
               <p className="mt-3 text-[18px] font-bold text-[#313C53]">Create New Project</p>
               <p className="mt-1 text-[13px] text-[#79859D]">Start a fresh documentation context</p>
-            </button>
+            </Link>
           </article>
 
           {isLoading ? (
@@ -294,26 +279,27 @@ export function ProjectsPage() {
             </span>
             <p className="text-[12px] font-semibold text-[#6E7A91]">Recent Activity</p>
           </div>
-          <ul className="mt-3 space-y-3 text-[13px]">
-            {recentActivity.map((item) => (
-              <li
-                key={`${item.actor}-${item.target}`}
-                className="flex items-start justify-between gap-2 border-b border-[#EDF1F7] pb-2 last:border-0 last:pb-0"
-              >
-                <p className="text-[#42506A]">
-                  <span className="font-semibold">{item.actor}</span> {item.action}{" "}
-                  <span className="font-semibold text-[#2F68E8]">{item.target}</span>
-                </p>
-                <span className="shrink-0 text-[#97A2B6]">{item.time}</span>
-              </li>
-            ))}
-          </ul>
-          <button
-            type="button"
-            className="mt-3 block text-left text-[12px] font-semibold text-[#2F68E8] hover:underline"
-          >
+          {recentActivity.length > 0 ? (
+            <ul className="mt-3 space-y-3 text-[13px]">
+              {recentActivity.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-start justify-between gap-2 border-b border-[#EDF1F7] pb-2 last:border-0 last:pb-0"
+                >
+                  <p className="text-[#42506A]">
+                    Project <span className="font-semibold text-[#2F68E8]">{item.target}</span> was{" "}
+                    <span className="font-semibold">{item.event}</span>.
+                  </p>
+                  <span className="shrink-0 text-[#97A2B6]">{item.time}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-[13px] text-[#7E8AA1]">No activity yet.</p>
+          )}
+          <Link href="/activity" className="mt-3 block text-left text-[12px] font-semibold text-[#2F68E8] hover:underline">
             View All Activity Log
-          </button>
+          </Link>
         </article>
 
         <article className="rounded-lg border border-[#E2E8F2] bg-white p-4">
@@ -326,14 +312,21 @@ export function ProjectsPage() {
           <p className="mt-1 text-[12px] text-[#8A96AB]">
             Frequently accessed technical specifications
           </p>
-          <ul className="mt-3 space-y-2 text-[13px] text-[#4B5872]">
-            {quickDocs.map((item) => (
-              <li key={item} className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#87A9F5]" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
+          {quickDocs.length > 0 ? (
+            <ul className="mt-3 space-y-2 text-[13px] text-[#4B5872]">
+              {quickDocs.map((project) => (
+                <li key={project.id} className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#87A9F5]" />
+                  <Link href={`/dashboard/${project.id}`} className="hover:text-[#2F68E8] hover:underline">
+                    {project.name}
+                  </Link>
+                  <span className="text-[11px] text-[#95A1B6]">({project.docsCount} docs)</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-[13px] text-[#7E8AA1]">No docs indexed yet.</p>
+          )}
         </article>
       </section>
 
@@ -404,7 +397,10 @@ function ProjectCard({
         >
           {project.status}
         </span>
-        <Link href="/dashboard" className="text-[12px] font-semibold text-[#2F68E8] hover:underline">
+        <Link
+          href={`/dashboard/${project.id}`}
+          className="text-[12px] font-semibold text-[#2F68E8] hover:underline"
+        >
           View Project
         </Link>
       </div>

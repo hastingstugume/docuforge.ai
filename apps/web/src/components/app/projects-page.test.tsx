@@ -48,13 +48,15 @@ describe("ProjectsPage", () => {
     expect(await screen.findByRole("heading", { name: "Nexus API Gateway" })).toBeInTheDocument();
   });
 
-  it("creates a new project from the top CTA", async () => {
+  it("links create CTAs to the new project route", async () => {
     renderProjectsPage();
 
     await screen.findByRole("heading", { name: "Nexus API Gateway" });
-    fireEvent.click(screen.getByRole("button", { name: "New Project" }));
 
-    expect(await screen.findByRole("heading", { name: "New Project 7" })).toBeInTheDocument();
-    expect(screen.getByText("7 Total")).toBeInTheDocument();
+    const topCta = screen.getByRole("link", { name: "New Project" });
+    expect(topCta).toHaveAttribute("href", "/dashboard/new");
+
+    const createCardCta = screen.getByRole("link", { name: /Create New Project/i });
+    expect(createCardCta).toHaveAttribute("href", "/dashboard/new");
   });
 });

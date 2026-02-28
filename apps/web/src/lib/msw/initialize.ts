@@ -1,11 +1,7 @@
 let isWorkerStarted = false;
 
 export function isMockingEnabled(): boolean {
-  const configured = process.env.NEXT_PUBLIC_API_MOCKING;
-  if (!configured) {
-    return true;
-  }
-  return configured === "enabled";
+  return process.env.NEXT_PUBLIC_API_MOCKING === "enabled";
 }
 
 export async function initializeMocking(): Promise<void> {

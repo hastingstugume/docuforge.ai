@@ -2,11 +2,18 @@ import {
   authResponseSchema,
   createProjectInputSchema,
   createProjectResponseSchema,
+  deleteProjectResponseSchema,
+  getProjectResponseSchema,
+  listProjectsQuerySchema,
   listProjectsResponseSchema,
   loginInputSchema,
   meResponseSchema,
   signupInputSchema,
+  updateProjectInputSchema,
+  updateProjectResponseSchema,
   type Project,
+  type ProjectStatus,
+  type ProjectType,
   type User,
 } from "@docuforge/shared";
 import { http, HttpResponse } from "msw";
@@ -106,6 +113,28 @@ function unauthorizedResponse() {
   return HttpResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 }
 
+function parseListProjectsQuery(requestUrl: string) {
+  const url = new URL(requestUrl);
+  const pageRaw = url.searchParams.get("page");
+  const pageSizeRaw = url.searchParams.get("pageSize");
+
+  const parsed = listProjectsQuerySchema.safeParse({
+    search: url.searchParams.get("search") ?? undefined,
+    status: (url.searchParams.get("status") ?? undefined) as ProjectStatus | undefined,
+    type: (url.searchParams.get("type") ?? undefined) as ProjectType | undefined,
+    page: pageRaw ? Number(pageRaw) : undefined,
+    pageSize: pageSizeRaw ? Number(pageSizeRaw) : undefined,
+    sortBy: url.searchParams.get("sortBy") ?? undefined,
+    sortOrder: url.searchParams.get("sortOrder") ?? undefined,
+  });
+
+  if (!parsed.success) {
+    return { ok: false as const, error: parsed.error.issues[0]?.message ?? "Invalid query params." };
+  }
+
+  return { ok: true as const, data: parsed.data };
+}
+
 export const handlers = [
   http.get("*/health", () => {
     return HttpResponse.json({ ok: true, service: "docuforge-mock-api" });
@@ -167,8 +196,68 @@ export const handlers = [
     return HttpResponse.json(meResponseSchema.parse({ ok: true, data: user }));
   }),
 
-  http.get("*/projects", () => {
-    return HttpResponse.json(listProjectsResponseSchema.parse({ ok: true, data: projects }));
+  http.get("*/projects", ({ request }) => {
+    const query = parseListProjectsQuery(request.url);
+    if (!query.ok) {
+      return HttpResponse.json({ ok: false, error: query.error }, { status: 400 });
+    }
+
+    const search = query.data.search?.toLowerCase() ?? "";
+    const sortBy = query.data.sortBy ?? "updatedAt";
+    const sortOrder = query.data.sortOrder ?? "desc";
+    const page = query.data.page ?? 1;
+    const pageSize = query.data.pageSize ?? 20;
+
+    const filtered = projects
+      .filter((project) => (query.data.status ? project.status === query.data.status : true))
+      .filter((project) => (query.data.type ? project.type === query.data.type : true))
+      .filter((project) =>
+        search
+          ? project.name.toLowerCase().includes(search) ||
+            project.description.toLowerCase().includes(search)
+          : true,
+      )
+      .sort((a, b) => {
+        let left: string | number;
+        let right: string | number;
+        if (sortBy === "name") {
+          left = a.name.toLowerCase();
+          right = b.name.toLowerCase();
+        } else if (sortBy === "createdAt") {
+          left = new Date(a.createdAt).getTime();
+          right = new Date(b.createdAt).getTime();
+        } else {
+          left = new Date(a.updatedAt).getTime();
+          right = new Date(b.updatedAt).getTime();
+        }
+        if (left === right) return 0;
+        const result = left > right ? 1 : -1;
+        return sortOrder === "asc" ? result : -result;
+      });
+
+    const total = filtered.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / pageSize);
+    const start = (page - 1) * pageSize;
+    const data = filtered.slice(start, start + pageSize);
+
+    return HttpResponse.json(
+      listProjectsResponseSchema.parse({
+        ok: true,
+        data,
+        meta: { total, page, pageSize, totalPages },
+      }),
+    );
+  }),
+
+  http.get("*/projects/:projectId", ({ params }) => {
+    const projectId = String(params.projectId ?? "");
+    const project = projects.find((item) => item.id === projectId);
+
+    if (!project) {
+      return HttpResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+    }
+
+    return HttpResponse.json(getProjectResponseSchema.parse({ ok: true, data: project }));
   }),
 
   http.post("*/projects", async ({ request }) => {
@@ -195,6 +284,43 @@ export const handlers = [
     projects = [project, ...projects];
 
     return HttpResponse.json(createProjectResponseSchema.parse({ ok: true, data: project }));
+  }),
+
+  http.patch("*/projects/:projectId", async ({ params, request }) => {
+    const projectId = String(params.projectId ?? "");
+    const index = projects.findIndex((item) => item.id === projectId);
+    if (index < 0) {
+      return HttpResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const parsed = updateProjectInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return HttpResponse.json(
+        { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid project payload." },
+        { status: 400 },
+      );
+    }
+
+    const updated: Project = {
+      ...projects[index],
+      ...parsed.data,
+      updatedAt: new Date().toISOString(),
+    };
+
+    projects[index] = updated;
+    return HttpResponse.json(updateProjectResponseSchema.parse({ ok: true, data: updated }));
+  }),
+
+  http.delete("*/projects/:projectId", ({ params }) => {
+    const projectId = String(params.projectId ?? "");
+    const index = projects.findIndex((item) => item.id === projectId);
+    if (index < 0) {
+      return HttpResponse.json({ ok: false, error: "Project not found." }, { status: 404 });
+    }
+
+    projects.splice(index, 1);
+    return HttpResponse.json(deleteProjectResponseSchema.parse({ ok: true, data: { id: projectId } }));
   }),
 ];
 
