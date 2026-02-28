@@ -88,15 +88,6 @@ export function SettingsPage() {
         </div>
       </section>
 
-      <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-[#E2E8F2] pt-4 text-[12px] text-[#7B879D]">
-        <p>© 2024 DocuForge AI. All rights reserved.</p>
-        <div className="flex gap-5">
-          <p>Status</p>
-          <p>Documentation</p>
-          <p>Support</p>
-          <p>Terms</p>
-        </div>
-      </footer>
     </div>
   );
 }

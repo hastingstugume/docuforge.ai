@@ -168,10 +168,25 @@ export function AppShell({ children }: AppShellProps) {
 
           <div className="flex min-w-0 flex-1 flex-col">
             <div className="flex-1 px-4 pb-6 pt-4 sm:px-6 sm:pt-5">{children}</div>
+            <AppFooter />
           </div>
         </div>
       </div>
     </main>
+  );
+}
+
+function AppFooter() {
+  return (
+    <footer className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-[#E2E8F2] px-4 py-3 text-[12px] text-[#7B879D] sm:px-6">
+      <p>© 2024 DocuForge AI. All rights reserved.</p>
+      <div className="flex gap-5">
+        <p>Status</p>
+        <p>Documentation</p>
+        <p>Support</p>
+        <p>Terms</p>
+      </div>
+    </footer>
   );
 }
 
