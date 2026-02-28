@@ -1,12 +1,22 @@
 import { z } from "zod";
 
 export const projectStatusSchema = z.enum(["active", "draft", "archived"]);
+export const projectTypeSchema = z.enum([
+  "api",
+  "dashboard",
+  "infrastructure",
+  "finance",
+  "compliance",
+  "migration",
+  "general",
+]);
 
 export const projectSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
   status: projectStatusSchema,
+  type: projectTypeSchema,
   docsCount: z.number().int().nonnegative(),
   updatedAt: z.string(),
   createdAt: z.string(),
@@ -58,6 +68,7 @@ export const exportSchema = z.object({
 });
 
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
+export type ProjectType = z.infer<typeof projectTypeSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type Context = z.infer<typeof contextSchema>;
 export type DocumentStatus = z.infer<typeof documentStatusSchema>;

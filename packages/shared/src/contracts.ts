@@ -15,6 +15,9 @@ export const listProjectsResponseSchema = z.object({
 export const createProjectInputSchema = z.object({
   name: z.string().trim().min(2, "Project name must be at least 2 characters."),
   description: z.string().trim().min(5, "Project description must be at least 5 characters."),
+  type: z
+    .enum(["api", "dashboard", "infrastructure", "finance", "compliance", "migration", "general"])
+    .optional(),
 });
 
 export const createProjectResponseSchema = z.object({

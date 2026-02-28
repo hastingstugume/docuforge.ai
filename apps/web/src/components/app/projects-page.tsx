@@ -17,8 +17,9 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  ChevronDown,
 } from "lucide-react";
-import type { Project } from "@docuforge/shared";
+import type { Project, ProjectStatus, ProjectType } from "@docuforge/shared";
 import { useCreateProject, useProjects } from "@/lib/api/projects";
 
 const recentActivity = [
@@ -46,23 +47,45 @@ const quickDocs = ["Architecture Overview v2", "Security Policy - ISO27k", "Endp
 
 const iconCycle: LucideIcon[] = [FilePlus2, FilePlus2, Folder, FileText, ShieldCheck, Archive];
 const toneCycle = ["orange", "blue", "indigo", "slate", "green", "violet"] as const;
+const statusOptions: Array<{ label: string; value: ProjectStatus | "all" }> = [
+  { label: "Status: All", value: "all" },
+  { label: "Status: Active", value: "active" },
+  { label: "Status: Draft", value: "draft" },
+  { label: "Status: Archived", value: "archived" },
+];
+const typeOptions: Array<{ label: string; value: ProjectType | "all" }> = [
+  { label: "Type: All", value: "all" },
+  { label: "Type: API", value: "api" },
+  { label: "Type: Dashboard", value: "dashboard" },
+  { label: "Type: Infrastructure", value: "infrastructure" },
+  { label: "Type: Finance", value: "finance" },
+  { label: "Type: Compliance", value: "compliance" },
+  { label: "Type: Migration", value: "migration" },
+  { label: "Type: General", value: "general" },
+];
 
 export function ProjectsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ProjectStatus | "all">("all");
+  const [typeFilter, setTypeFilter] = useState<ProjectType | "all">("all");
   const { data: projects = [], isLoading, isError, error } = useProjects();
   const createProjectMutation = useCreateProject();
 
   const filteredProjects = useMemo(() => {
     const normalized = searchTerm.trim().toLowerCase();
-    if (!normalized) {
-      return projects;
-    }
+
     return projects.filter(
-      (project) =>
-        project.name.toLowerCase().includes(normalized) ||
-        project.description.toLowerCase().includes(normalized),
+      (project) => {
+        const matchesSearch =
+          normalized.length === 0 ||
+          project.name.toLowerCase().includes(normalized) ||
+          project.description.toLowerCase().includes(normalized);
+        const matchesStatus = statusFilter === "all" || project.status === statusFilter;
+        const matchesType = typeFilter === "all" || project.type === typeFilter;
+        return matchesSearch && matchesStatus && matchesType;
+      },
     );
-  }, [projects, searchTerm]);
+  }, [projects, searchTerm, statusFilter, typeFilter]);
 
   const visibleProjects = filteredProjects.slice(0, 6);
   const totalProjects = projects.length;
@@ -72,7 +95,19 @@ export function ProjectsPage() {
     createProjectMutation.mutate({
       name: `New Project ${nextProjectNumber}`,
       description: "Start a fresh documentation context for new documentation assets.",
+      type: "general",
     });
+  }
+
+  const statusOption = statusOptions.find((item) => item.value === statusFilter) ?? statusOptions[0];
+  const typeOption = typeOptions.find((item) => item.value === typeFilter) ?? typeOptions[0];
+
+  const hasActiveFilters = searchTerm.trim().length > 0 || statusFilter !== "all" || typeFilter !== "all";
+
+  function clearFilters() {
+    setSearchTerm("");
+    setStatusFilter("all");
+    setTypeFilter("all");
   }
 
   return (
@@ -134,12 +169,24 @@ export function ProjectsPage() {
               className="h-9 w-full rounded-md border border-[#DFE5F0] bg-white pl-9 pr-3 text-[13px] text-[#374359] outline-none placeholder:text-[#9BA7BA] focus:border-[#2F68E8] focus:ring-2 focus:ring-[#2F68E8]/15"
             />
           </label>
-          <FilterChip label="Status: All" widthClass="w-[120px]" />
-          <FilterChip label="Type: All" widthClass="w-[110px]" />
+          <FilterSelect
+            label={statusOption.label}
+            widthClass="w-[120px]"
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as ProjectStatus | "all")}
+            options={statusOptions}
+          />
+          <FilterSelect
+            label={typeOption.label}
+            widthClass="w-[132px]"
+            value={typeFilter}
+            onChange={(value) => setTypeFilter(value as ProjectType | "all")}
+            options={typeOptions}
+          />
           <span className="hidden h-5 w-px bg-[#E1E7F1] lg:block" />
           <button
             type="button"
-            onClick={() => setSearchTerm("")}
+            onClick={clearFilters}
             className="inline-flex h-9 items-center justify-center rounded-md px-2 text-[13px] font-medium text-[#6C7891] transition hover:bg-[#EFF4FB]"
           >
             Clear Filters
@@ -184,6 +231,15 @@ export function ProjectsPage() {
               <p className="mt-1 text-[12px] text-[#6E7890]">
                 Try a different filter, or create a new project.
               </p>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-3 inline-flex h-8 items-center rounded-md border border-[#DCE3EE] px-3 text-[12px] font-semibold text-[#5B6882] hover:bg-[#F5F8FD]"
+                >
+                  Reset Filters
+                </button>
+              ) : null}
             </article>
           ) : null}
 
@@ -192,8 +248,8 @@ export function ProjectsPage() {
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  tone={toneCycle[index % toneCycle.length]}
-                  Icon={iconCycle[index % iconCycle.length]}
+                  tone={getProjectTone(project, index)}
+                  Icon={getProjectIcon(project, index)}
                 />
               ))
             : null}
@@ -368,15 +424,38 @@ function ProjectLoadingCard() {
   );
 }
 
-function FilterChip({ label, widthClass = "" }: { label: string; widthClass?: string }) {
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+  widthClass = "",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: ReadonlyArray<{ label: string; value: string }>;
+  widthClass?: string;
+}) {
   return (
-    <button
-      type="button"
-      className={`inline-flex h-9 items-center justify-between rounded-md border border-[#DDE4EF] bg-white px-3 text-[13px] text-[#56627B] ${widthClass}`}
+    <label
+      className={`relative inline-flex h-9 items-center rounded-md border border-[#DDE4EF] bg-white px-3 text-[13px] text-[#56627B] ${widthClass}`}
     >
-      <span>{label}</span>
-      <Plus className="ml-2 h-3 w-3 text-[#8E9AB0]" />
-    </button>
+      <span className="pointer-events-none truncate pr-5">{label}</span>
+      <ChevronDown className="pointer-events-none absolute right-2 h-3.5 w-3.5 text-[#8E9AB0]" />
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="absolute inset-0 cursor-pointer opacity-0"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -407,6 +486,44 @@ function getStatusClassName(status: string): string {
   }
 
   return "bg-[#EEF1F6] text-[#93A0B5]";
+}
+
+function getProjectTone(project: Project, index: number): (typeof toneCycle)[number] {
+  switch (project.type) {
+    case "api":
+      return "orange";
+    case "dashboard":
+      return "blue";
+    case "infrastructure":
+      return "indigo";
+    case "finance":
+      return "slate";
+    case "compliance":
+      return "green";
+    case "migration":
+      return "violet";
+    default:
+      return toneCycle[index % toneCycle.length];
+  }
+}
+
+function getProjectIcon(project: Project, index: number): LucideIcon {
+  switch (project.type) {
+    case "api":
+      return FilePlus2;
+    case "dashboard":
+      return FilePlus2;
+    case "infrastructure":
+      return Folder;
+    case "finance":
+      return FileText;
+    case "compliance":
+      return ShieldCheck;
+    case "migration":
+      return Archive;
+    default:
+      return iconCycle[index % iconCycle.length];
+  }
 }
 
 function formatRelativeTime(isoDate: string): string {
