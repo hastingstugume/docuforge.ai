@@ -10,6 +10,9 @@
     "test": "echo 'no test yet' && exit 0",
     "typecheck": "tsc -p ./tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "typescript": "^5.5.4"
   }

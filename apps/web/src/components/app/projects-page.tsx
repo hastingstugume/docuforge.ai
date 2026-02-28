@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo, useState } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   Archive,
   CircleDot,
@@ -14,67 +18,8 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
-
-const projects = [
-  {
-    name: "Nexus API Gateway",
-    description:
-      "Internal documentation for the microservices gateway and authentication middleware.",
-    age: "2 hours ago",
-    docs: "14 Docs",
-    status: "active",
-    tone: "orange",
-    icon: FilePlus2,
-  },
-  {
-    name: "CloudScale Dashboard",
-    description: "Technical specs for the multi-cloud monitoring frontend and real-time analytics.",
-    age: "5 hours ago",
-    docs: "8 Docs",
-    status: "active",
-    tone: "blue",
-    icon: FilePlus2,
-  },
-  {
-    name: "Storage Vault v4",
-    description:
-      "Infrastructure requirements for the encrypted blob storage and retention policies.",
-    age: "1 day ago",
-    docs: "22 Docs",
-    status: "active",
-    tone: "indigo",
-    icon: Folder,
-  },
-  {
-    name: "Payment Orchestrator",
-    description:
-      "Detailed workflows for stripe integration, refund handling, and ledger reconciliation.",
-    age: "3 days ago",
-    docs: "5 Docs",
-    status: "draft",
-    tone: "slate",
-    icon: FileText,
-  },
-  {
-    name: "Compliance Auditor",
-    description:
-      "SOX and ISO 27001 compliance tracking system technical requirements and controls.",
-    age: "1 week ago",
-    docs: "12 Docs",
-    status: "active",
-    tone: "green",
-    icon: ShieldCheck,
-  },
-  {
-    name: "Legacy Migration Docs",
-    description: "Archived documentation for the sunsetting mainframe-to-cloud migration project.",
-    age: "2 weeks ago",
-    docs: "31 Docs",
-    status: "archived",
-    tone: "violet",
-    icon: Archive,
-  },
-];
+import type { Project } from "@docuforge/shared";
+import { useCreateProject, useProjects } from "@/lib/api/projects";
 
 const recentActivity = [
   {
@@ -99,7 +44,37 @@ const recentActivity = [
 
 const quickDocs = ["Architecture Overview v2", "Security Policy - ISO27k", "Endpoint Definitions"];
 
+const iconCycle: LucideIcon[] = [FilePlus2, FilePlus2, Folder, FileText, ShieldCheck, Archive];
+const toneCycle = ["orange", "blue", "indigo", "slate", "green", "violet"] as const;
+
 export function ProjectsPage() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const { data: projects = [], isLoading, isError, error } = useProjects();
+  const createProjectMutation = useCreateProject();
+
+  const filteredProjects = useMemo(() => {
+    const normalized = searchTerm.trim().toLowerCase();
+    if (!normalized) {
+      return projects;
+    }
+    return projects.filter(
+      (project) =>
+        project.name.toLowerCase().includes(normalized) ||
+        project.description.toLowerCase().includes(normalized),
+    );
+  }, [projects, searchTerm]);
+
+  const visibleProjects = filteredProjects.slice(0, 6);
+  const totalProjects = projects.length;
+
+  function handleCreateProject() {
+    const nextProjectNumber = totalProjects + 1;
+    createProjectMutation.mutate({
+      name: `New Project ${nextProjectNumber}`,
+      description: "Start a fresh documentation context for new documentation assets.",
+    });
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <section>
@@ -110,7 +85,7 @@ export function ProjectsPage() {
                 Projects
               </h1>
               <span className="rounded bg-[#F0F4FB] px-1.5 py-0.5 text-[10px] font-semibold text-[#7A879E]">
-                12 Total
+                {totalProjects} Total
               </span>
             </div>
             <p className="mt-1 text-[13px] text-[#6D7991]">
@@ -138,10 +113,12 @@ export function ProjectsPage() {
             </div>
             <button
               type="button"
-              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#2F68E8] px-3 text-[13px] font-semibold text-white transition hover:bg-[#275ad0]"
+              onClick={handleCreateProject}
+              disabled={createProjectMutation.isPending}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[#2F68E8] px-3 text-[13px] font-semibold text-white transition hover:bg-[#275ad0] disabled:cursor-not-allowed disabled:opacity-70"
             >
               <Plus className="h-4 w-4" />
-              New Project
+              {createProjectMutation.isPending ? "Creating..." : "New Project"}
             </button>
           </div>
         </div>
@@ -151,6 +128,8 @@ export function ProjectsPage() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#97A2B6]" />
             <input
               type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Filter projects by name, tags, or technology..."
               className="h-9 w-full rounded-md border border-[#DFE5F0] bg-white pl-9 pr-3 text-[13px] text-[#374359] outline-none placeholder:text-[#9BA7BA] focus:border-[#2F68E8] focus:ring-2 focus:ring-[#2F68E8]/15"
             />
@@ -160,6 +139,7 @@ export function ProjectsPage() {
           <span className="hidden h-5 w-px bg-[#E1E7F1] lg:block" />
           <button
             type="button"
+            onClick={() => setSearchTerm("")}
             className="inline-flex h-9 items-center justify-center rounded-md px-2 text-[13px] font-medium text-[#6C7891] transition hover:bg-[#EFF4FB]"
           >
             Clear Filters
@@ -168,77 +148,61 @@ export function ProjectsPage() {
 
         <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <article className="rounded-lg border-[3px] border-dashed border-[#9CB1D0] bg-[#FBFCFE] p-4">
-            <div className="flex h-full min-h-[164px] flex-col items-center justify-center text-center">
+            <button
+              type="button"
+              onClick={handleCreateProject}
+              disabled={createProjectMutation.isPending}
+              className="flex h-full min-h-[164px] w-full flex-col items-center justify-center text-center disabled:opacity-70"
+            >
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-full border-2 border-dashed border-[#B7C5DD] bg-white text-[#667A9A]">
                 <Plus className="h-4 w-4" strokeWidth={3} />
               </span>
               <p className="mt-3 text-[18px] font-bold text-[#313C53]">Create New Project</p>
               <p className="mt-1 text-[13px] text-[#79859D]">Start a fresh documentation context</p>
-            </div>
+            </button>
           </article>
 
-          {projects.map((project) => (
-            <article key={project.name} className="rounded-lg border border-[#E3E8F1] bg-white p-4">
-              <div className="flex items-start justify-between gap-3">
-                <span
-                  className={[
-                    "inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E6ECF6]",
-                    getToneClasses(project.tone),
-                  ].join(" ")}
-                >
-                  <project.icon className="h-4 w-4" />
-                </span>
-                <button
-                  type="button"
-                  className="text-[#A1ABBC]"
-                  aria-label={`Project actions for ${project.name}`}
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-              </div>
+          {isLoading ? (
+            <>
+              <ProjectLoadingCard />
+              <ProjectLoadingCard />
+            </>
+          ) : null}
 
-              <h2 className="mt-3 text-[16px] font-bold leading-tight text-[#1F283A]">
-                {project.name}
-              </h2>
-              <p className="mt-1 min-h-[46px] text-[12px] leading-relaxed text-[#6E7890]">
-                {project.description}
+          {isError ? (
+            <article className="rounded-lg border border-[#F2CFD3] bg-[#FFF7F8] p-4">
+              <p className="text-[13px] font-semibold text-[#8A2C38]">Unable to load projects.</p>
+              <p className="mt-1 text-[12px] text-[#9A5360]">
+                {error instanceof Error ? error.message : "Please try again."}
               </p>
-
-              <div className="mt-3 flex items-center justify-between text-[11px] text-[#8B96AC]">
-                <span className="inline-flex items-center gap-1">
-                  <Clock3 className="h-3 w-3" />
-                  {project.age}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Files className="h-3 w-3" />
-                  {project.docs}
-                </span>
-              </div>
-
-              <div className="mt-3 flex items-center justify-between">
-                <span
-                  className={[
-                    "rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
-                    getStatusClassName(project.status),
-                  ].join(" ")}
-                >
-                  {project.status}
-                </span>
-                <Link
-                  href="/dashboard"
-                  className="text-[12px] font-semibold text-[#2F68E8] hover:underline"
-                >
-                  View Project
-                </Link>
-              </div>
             </article>
-          ))}
+          ) : null}
+
+          {!isLoading && !isError && visibleProjects.length === 0 ? (
+            <article className="rounded-lg border border-[#E3E8F1] bg-white p-4">
+              <p className="text-[14px] font-semibold text-[#2C374D]">No projects found</p>
+              <p className="mt-1 text-[12px] text-[#6E7890]">
+                Try a different filter, or create a new project.
+              </p>
+            </article>
+          ) : null}
+
+          {!isLoading && !isError
+            ? visibleProjects.map((project, index) => (
+                <ProjectCard
+                  key={project.id}
+                  project={project}
+                  tone={toneCycle[index % toneCycle.length]}
+                  Icon={iconCycle[index % iconCycle.length]}
+                />
+              ))
+            : null}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#E6ECF4] pt-3 text-[12px] text-[#76839A]">
           <p>
-            Showing <span className="font-bold text-[#4D5B74]">6</span> of{" "}
-            <span className="font-bold text-[#4D5B74]">12</span> projects
+            Showing <span className="font-bold text-[#4D5B74]">{visibleProjects.length}</span> of{" "}
+            <span className="font-bold text-[#4D5B74]">{totalProjects}</span> projects
           </p>
           <div className="inline-flex items-center gap-1">
             <button
@@ -330,6 +294,80 @@ export function ProjectsPage() {
   );
 }
 
+function ProjectCard({
+  project,
+  tone,
+  Icon,
+}: {
+  project: Project;
+  tone: (typeof toneCycle)[number];
+  Icon: LucideIcon;
+}) {
+  return (
+    <article className="rounded-lg border border-[#E3E8F1] bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <span
+          className={[
+            "inline-flex h-8 w-8 items-center justify-center rounded-md border border-[#E6ECF6]",
+            getToneClasses(tone),
+          ].join(" ")}
+        >
+          <Icon className="h-4 w-4" />
+        </span>
+        <button
+          type="button"
+          className="text-[#A1ABBC]"
+          aria-label={`Project actions for ${project.name}`}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+      </div>
+
+      <h2 className="mt-3 text-[16px] font-bold leading-tight text-[#1F283A]">{project.name}</h2>
+      <p className="mt-1 min-h-[46px] text-[12px] leading-relaxed text-[#6E7890]">
+        {project.description}
+      </p>
+
+      <div className="mt-3 flex items-center justify-between text-[11px] text-[#8B96AC]">
+        <span className="inline-flex items-center gap-1">
+          <Clock3 className="h-3 w-3" />
+          {formatRelativeTime(project.updatedAt)}
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <Files className="h-3 w-3" />
+          {project.docsCount} Docs
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between">
+        <span
+          className={[
+            "rounded px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+            getStatusClassName(project.status),
+          ].join(" ")}
+        >
+          {project.status}
+        </span>
+        <Link href="/dashboard" className="text-[12px] font-semibold text-[#2F68E8] hover:underline">
+          View Project
+        </Link>
+      </div>
+    </article>
+  );
+}
+
+function ProjectLoadingCard() {
+  return (
+    <article className="rounded-lg border border-[#E3E8F1] bg-white p-4">
+      <div className="h-8 w-8 animate-pulse rounded-md bg-[#EFF3F9]" />
+      <div className="mt-3 h-4 w-2/3 animate-pulse rounded bg-[#EEF3FA]" />
+      <div className="mt-2 h-3 w-full animate-pulse rounded bg-[#F3F6FB]" />
+      <div className="mt-1 h-3 w-5/6 animate-pulse rounded bg-[#F3F6FB]" />
+      <div className="mt-4 h-3 w-1/2 animate-pulse rounded bg-[#F0F4FA]" />
+    </article>
+  );
+}
+
 function FilterChip({ label, widthClass = "" }: { label: string; widthClass?: string }) {
   return (
     <button
@@ -369,4 +407,35 @@ function getStatusClassName(status: string): string {
   }
 
   return "bg-[#EEF1F6] text-[#93A0B5]";
+}
+
+function formatRelativeTime(isoDate: string): string {
+  const time = new Date(isoDate).getTime();
+  if (Number.isNaN(time)) {
+    return "recently";
+  }
+
+  const deltaMs = Date.now() - time;
+  const minute = 60_000;
+  const hour = minute * 60;
+  const day = hour * 24;
+  const week = day * 7;
+
+  if (deltaMs < hour) {
+    const minutes = Math.max(1, Math.floor(deltaMs / minute));
+    return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  if (deltaMs < day) {
+    const hours = Math.max(1, Math.floor(deltaMs / hour));
+    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  if (deltaMs < week) {
+    const days = Math.max(1, Math.floor(deltaMs / day));
+    return `${days} day${days === 1 ? "" : "s"} ago`;
+  }
+
+  const weeks = Math.max(1, Math.floor(deltaMs / week));
+  return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
 }

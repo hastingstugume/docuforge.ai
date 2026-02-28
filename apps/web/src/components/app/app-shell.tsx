@@ -18,6 +18,7 @@ import {
   Settings,
   X,
 } from "lucide-react";
+import { useMe } from "@/lib/api/me";
 
 type AppShellProps = {
   children: ReactNode;
@@ -34,6 +35,7 @@ const navItems = [
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const [isMobileNavOpen, setMobileNavOpen] = useState(false);
+  const { data: me } = useMe();
 
   const activeHref = useMemo(() => {
     if (!pathname) {
@@ -48,6 +50,15 @@ export function AppShell({ children }: AppShellProps) {
     const nested = navItems.find((item) => pathname.startsWith(`${item.href}/`));
     return nested?.href ?? "/dashboard";
   }, [pathname]);
+
+  const initials = me?.fullName
+    ? me.fullName
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((chunk) => chunk[0]?.toUpperCase() ?? "")
+        .join("")
+    : "HA";
 
   return (
     <main className="min-h-dvh bg-[#F4F6FA] text-[#1F2739]">
@@ -117,7 +128,7 @@ export function AppShell({ children }: AppShellProps) {
                   aria-label="Profile menu"
                 >
                   <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#D7DEEA] bg-[linear-gradient(140deg,#f1f5ff,#d6e2ff)] text-xs font-bold text-[#3A4A6A]">
-                    HA
+                    {initials}
                     <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border border-white bg-[#2FC36B]" />
                   </span>
                 </button>

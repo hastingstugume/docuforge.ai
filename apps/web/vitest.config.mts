@@ -5,6 +5,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@docuforge/shared": path.resolve(__dirname, "../../packages/shared/src/index.ts"),
+      "@docuforge/shared/": path.resolve(__dirname, "../../packages/shared/src/"),
     },
   },
   test: {
