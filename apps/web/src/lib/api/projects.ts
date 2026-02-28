@@ -17,6 +17,7 @@ import {
 } from "@docuforge/shared";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetchJson } from "@/lib/api/client";
+import { activityEventsQueryKey } from "@/lib/api/activity";
 
 export const projectsQueryKey = ["projects"] as const;
 export const projectQueryKey = (projectId: string) => [...projectsQueryKey, projectId] as const;
@@ -103,6 +104,7 @@ export function useCreateProject() {
     onSuccess: (project) => {
       queryClient.setQueryData(projectQueryKey(project.id), project);
       void queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: activityEventsQueryKey });
     },
   });
 }
@@ -116,6 +118,7 @@ export function useUpdateProject() {
     onSuccess: (project) => {
       queryClient.setQueryData(projectQueryKey(project.id), project);
       void queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: activityEventsQueryKey });
     },
   });
 }
@@ -129,6 +132,7 @@ export function useDeleteProject() {
     onSuccess: (projectId) => {
       queryClient.removeQueries({ queryKey: projectQueryKey(projectId) });
       void queryClient.invalidateQueries({ queryKey: projectsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: activityEventsQueryKey });
     },
   });
 }

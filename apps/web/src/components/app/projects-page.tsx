@@ -21,7 +21,8 @@ import {
   Trash2,
   ChevronDown,
 } from "lucide-react";
-import type { Project, ProjectStatus, ProjectType } from "@docuforge/shared";
+import type { ActivityEvent, Project, ProjectStatus, ProjectType } from "@docuforge/shared";
+import { useActivityEvents } from "@/lib/api/activity";
 import { useDeleteProject, useProjects } from "@/lib/api/projects";
 
 const iconCycle: LucideIcon[] = [FilePlus2, FilePlus2, Folder, FileText, ShieldCheck, Archive];
@@ -72,21 +73,11 @@ export function ProjectsPage() {
   const { data: projectsResponse, isLoading, isError, error } = useProjects(projectsQuery);
   const projects = projectsResponse?.data ?? EMPTY_PROJECTS;
   const meta = projectsResponse?.meta;
-
-  const recentActivity = useMemo(() => {
-    return [...projects]
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
-      .slice(0, 3)
-      .map((project) => ({
-        id: project.id,
-        event:
-          new Date(project.createdAt).getTime() === new Date(project.updatedAt).getTime()
-            ? "created"
-            : "updated",
-        target: project.name,
-        time: formatRelativeTime(project.updatedAt),
-      }));
-  }, [projects]);
+  const {
+    data: recentActivity = [],
+    isLoading: isRecentActivityLoading,
+    isError: isRecentActivityError,
+  } = useActivityEvents({ limit: 3 });
 
   const quickDocs = useMemo(() => {
     return [...projects]
@@ -384,7 +375,10 @@ export function ProjectsPage() {
             </span>
             <p className="text-[12px] font-semibold text-[#6E7A91]">Recent Activity</p>
           </div>
-          {recentActivity.length > 0 ? (
+          {isRecentActivityLoading ? (
+            <p className="mt-3 text-[13px] text-[#7E8AA1]">Loading activity...</p>
+          ) : null}
+          {!isRecentActivityLoading && !isRecentActivityError && recentActivity.length > 0 ? (
             <ul className="mt-3 space-y-3 text-[13px]">
               {recentActivity.map((item) => (
                 <li
@@ -392,16 +386,20 @@ export function ProjectsPage() {
                   className="flex items-start justify-between gap-2 border-b border-[#EDF1F7] pb-2 last:border-0 last:pb-0"
                 >
                   <p className="text-[#42506A]">
-                    Project <span className="font-semibold text-[#2F68E8]">{item.target}</span> was{" "}
-                    <span className="font-semibold">{item.event}</span>.
+                    Project <span className="font-semibold text-[#2F68E8]">{item.resourceName}</span> was{" "}
+                    <span className="font-semibold">{toActivityActionLabel(item.action)}</span>.
                   </p>
-                  <span className="shrink-0 text-[#97A2B6]">{item.time}</span>
+                  <span className="shrink-0 text-[#97A2B6]">{formatRelativeTime(item.occurredAt)}</span>
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : null}
+          {!isRecentActivityLoading && isRecentActivityError ? (
+            <p className="mt-3 text-[13px] text-[#7E8AA1]">Unable to load activity.</p>
+          ) : null}
+          {!isRecentActivityLoading && !isRecentActivityError && recentActivity.length === 0 ? (
             <p className="mt-3 text-[13px] text-[#7E8AA1]">No activity yet.</p>
-          )}
+          ) : null}
           <Link href="/activity" className="mt-3 block text-left text-[12px] font-semibold text-[#2F68E8] hover:underline">
             View All Activity Log
           </Link>
@@ -729,4 +727,14 @@ function formatRelativeTime(isoDate: string): string {
 
   const weeks = Math.max(1, Math.floor(deltaMs / week));
   return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+}
+
+function toActivityActionLabel(action: ActivityEvent["action"]): string {
+  if (action === "project.created") {
+    return "created";
+  }
+  if (action === "project.updated") {
+    return "updated";
+  }
+  return "deleted";
 }

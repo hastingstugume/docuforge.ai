@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ProjectsPage } from "@/components/app/projects-page";
 
@@ -80,5 +80,9 @@ describe("ProjectsPage", () => {
       expect(screen.queryByRole("heading", { name: "Nexus API Gateway" })).not.toBeInTheDocument();
     });
     expect(screen.getByText("5 Total")).toBeInTheDocument();
+    const recentActivityCard = screen.getByText("Recent Activity").closest("article");
+    expect(recentActivityCard).not.toBeNull();
+    const activityItems = within(recentActivityCard as HTMLElement).getAllByRole("listitem");
+    expect(activityItems[0]).toHaveTextContent("Project Nexus API Gateway was deleted.");
   });
 });

@@ -12,7 +12,9 @@ const allowedOrigins = new Set(
 
 const sessions = new Map();
 const projects = [];
+const activityEvents = [];
 const defaultOwnerId = "system-owner";
+const defaultActorName = "System";
 
 const projectTypes = new Set([
   "api",
@@ -141,6 +143,20 @@ function validateProject(project) {
   );
 }
 
+function validateActivityEvent(event) {
+  return (
+    event &&
+    typeof event.id === "string" &&
+    ["project.created", "project.updated", "project.deleted"].includes(event.action) &&
+    event.resourceType === "project" &&
+    typeof event.resourceId === "string" &&
+    typeof event.resourceName === "string" &&
+    typeof event.actorId === "string" &&
+    typeof event.actorName === "string" &&
+    isValidIsoDate(event.occurredAt)
+  );
+}
+
 function parsePositiveInteger(value, fallback) {
   if (!value) {
     return fallback;
@@ -157,12 +173,38 @@ function getProjectIdFromPath(pathname) {
   return raw ? decodeURIComponent(raw) : "";
 }
 
-function getSessionUserId(request) {
+function getSessionUser(request) {
   const token = parseBearerToken(request.headers.authorization);
   if (!token || !sessions.has(token)) {
-    return defaultOwnerId;
+    return null;
   }
-  return sessions.get(token).id;
+  return sessions.get(token);
+}
+
+function getRequestActor(request) {
+  const user = getSessionUser(request);
+  if (!user) {
+    return { id: defaultOwnerId, name: defaultActorName };
+  }
+  return { id: user.id, name: user.fullName };
+}
+
+function recordProjectActivity({ action, project, actor, occurredAt }) {
+  const event = {
+    id: randomUUID(),
+    action,
+    resourceType: "project",
+    resourceId: project.id,
+    resourceName: project.name,
+    actorId: actor.id,
+    actorName: actor.name,
+    occurredAt: occurredAt ?? new Date().toISOString(),
+  };
+
+  activityEvents.unshift(event);
+  if (activityEvents.length > 5_000) {
+    activityEvents.length = 5_000;
+  }
 }
 
 function isAllowedLanOrigin(origin) {
@@ -350,6 +392,18 @@ const server = createServer(async (request, response) => {
     return;
   }
 
+  if (method === "GET" && pathname === "/activities") {
+    const limit = parsePositiveInteger(url.searchParams.get("limit"), 20);
+    if (limit === null || limit > 100) {
+      sendJson(response, 400, { ok: false, error: "Invalid limit query." }, origin);
+      return;
+    }
+
+    const data = activityEvents.filter(validateActivityEvent).slice(0, limit);
+    sendJson(response, 200, { ok: true, data }, origin);
+    return;
+  }
+
   if (method === "GET" && pathname === "/projects") {
     const status = url.searchParams.get("status");
     const type = url.searchParams.get("type");
@@ -455,6 +509,7 @@ const server = createServer(async (request, response) => {
       }
 
       const now = new Date().toISOString();
+      const actor = getRequestActor(request);
       const project = {
         id: randomUUID(),
         name: parsed.data.name,
@@ -464,10 +519,11 @@ const server = createServer(async (request, response) => {
         docsCount: 0,
         updatedAt: now,
         createdAt: now,
-        ownerId: getSessionUserId(request),
+        ownerId: actor.id,
       };
 
       projects.unshift(project);
+      recordProjectActivity({ action: "project.created", project, actor, occurredAt: now });
       sendJson(response, 200, { ok: true, data: project }, origin);
       return;
     } catch {
@@ -492,10 +548,12 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      const actor = getRequestActor(request);
+      const now = new Date().toISOString();
       const updated = {
         ...projects[index],
         ...parsed.data,
-        updatedAt: new Date().toISOString(),
+        updatedAt: now,
       };
 
       if (!validateProject(updated)) {
@@ -504,6 +562,7 @@ const server = createServer(async (request, response) => {
       }
 
       projects[index] = updated;
+      recordProjectActivity({ action: "project.updated", project: updated, actor, occurredAt: now });
       sendJson(response, 200, { ok: true, data: updated }, origin);
       return;
     } catch {
@@ -528,6 +587,7 @@ const server = createServer(async (request, response) => {
         return;
       }
 
+      const actor = getRequestActor(request);
       const project = projects[index];
       if (parsed.data.confirmName !== project.name) {
         sendJson(response, 400, { ok: false, error: "Project name confirmation does not match." }, origin);
@@ -535,6 +595,7 @@ const server = createServer(async (request, response) => {
       }
 
       projects.splice(index, 1);
+      recordProjectActivity({ action: "project.deleted", project, actor });
       sendJson(response, 200, { ok: true, data: { id: projectId } }, origin);
       return;
     } catch {

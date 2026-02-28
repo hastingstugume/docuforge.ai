@@ -5,6 +5,8 @@ import {
   deleteProjectInputSchema,
   deleteProjectResponseSchema,
   getProjectResponseSchema,
+  listActivityEventsQuerySchema,
+  listActivityEventsResponseSchema,
   listProjectsQuerySchema,
   listProjectsResponseSchema,
   loginInputSchema,
@@ -12,6 +14,7 @@ import {
   signupInputSchema,
   updateProjectInputSchema,
   updateProjectResponseSchema,
+  type ActivityEvent,
   type Project,
   type ProjectStatus,
   type ProjectType,
@@ -89,6 +92,39 @@ const seededProjects: Project[] = [
 ];
 
 let projects = [...seededProjects];
+const seededActivityEvents: ActivityEvent[] = [
+  {
+    id: "activity-1",
+    action: "project.updated",
+    resourceType: "project",
+    resourceId: "proj-nexus-api",
+    resourceName: "Nexus API Gateway",
+    actorId: "user-docuforge",
+    actorName: "DocuForge User",
+    occurredAt: "2026-02-24T12:00:00.000Z",
+  },
+  {
+    id: "activity-2",
+    action: "project.updated",
+    resourceType: "project",
+    resourceId: "proj-payment-orchestrator",
+    resourceName: "Payment Orchestrator",
+    actorId: "user-docuforge",
+    actorName: "DocuForge User",
+    occurredAt: "2026-02-24T11:00:00.000Z",
+  },
+  {
+    id: "activity-3",
+    action: "project.created",
+    resourceType: "project",
+    resourceId: "proj-compliance-auditor",
+    resourceName: "Compliance Auditor",
+    actorId: "user-docuforge",
+    actorName: "DocuForge User",
+    occurredAt: "2026-02-24T09:00:00.000Z",
+  },
+];
+let activityEvents = [...seededActivityEvents];
 const sessions = new Map<string, User>();
 
 function createId(): string {
@@ -108,6 +144,22 @@ function ensureSeedSession(): string {
     });
   }
   return token;
+}
+
+function recordProjectActivity(action: ActivityEvent["action"], project: Project): void {
+  activityEvents = [
+    {
+      id: createId(),
+      action,
+      resourceType: "project" as const,
+      resourceId: project.id,
+      resourceName: project.name,
+      actorId: "user-docuforge",
+      actorName: "DocuForge User",
+      occurredAt: new Date().toISOString(),
+    },
+    ...activityEvents,
+  ].slice(0, 5_000);
 }
 
 function unauthorizedResponse() {
@@ -139,6 +191,29 @@ function parseListProjectsQuery(requestUrl: string) {
 export const handlers = [
   http.get("*/health", () => {
     return HttpResponse.json({ ok: true, service: "docuforge-mock-api" });
+  }),
+
+  http.get("*/activities", ({ request }) => {
+    const url = new URL(request.url);
+    const limitRaw = url.searchParams.get("limit");
+    const parsed = listActivityEventsQuerySchema.safeParse({
+      limit: limitRaw ? Number(limitRaw) : undefined,
+    });
+
+    if (!parsed.success) {
+      return HttpResponse.json(
+        { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid query params." },
+        { status: 400 },
+      );
+    }
+
+    const limit = parsed.data.limit ?? 20;
+    return HttpResponse.json(
+      listActivityEventsResponseSchema.parse({
+        ok: true,
+        data: activityEvents.slice(0, limit),
+      }),
+    );
   }),
 
   http.post("*/auth/login", async ({ request }) => {
@@ -283,6 +358,7 @@ export const handlers = [
     };
 
     projects = [project, ...projects];
+    recordProjectActivity("project.created", project);
 
     return HttpResponse.json(createProjectResponseSchema.parse({ ok: true, data: project }));
   }),
@@ -310,6 +386,7 @@ export const handlers = [
     };
 
     projects[index] = updated;
+    recordProjectActivity("project.updated", updated);
     return HttpResponse.json(updateProjectResponseSchema.parse({ ok: true, data: updated }));
   }),
 
@@ -342,12 +419,15 @@ export const handlers = [
       );
     }
 
+    const project = projects[index];
     projects.splice(index, 1);
+    recordProjectActivity("project.deleted", project);
     return HttpResponse.json(deleteProjectResponseSchema.parse({ ok: true, data: { id: projectId } }));
   }),
 ];
 
 export function resetMockData(): void {
   projects = [...seededProjects];
+  activityEvents = [...seededActivityEvents];
   sessions.clear();
 }

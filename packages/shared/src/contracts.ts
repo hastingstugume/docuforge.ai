@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { projectSchema, projectStatusSchema, projectTypeSchema } from "./entities";
+import { activityEventSchema, projectSchema, projectStatusSchema, projectTypeSchema } from "./entities";
 import { userSchema } from "./auth";
 
 export const apiErrorSchema = z.object({
@@ -28,6 +28,15 @@ export const listProjectsQuerySchema = z.object({
   pageSize: z.number().int().positive().max(100).optional(),
   sortBy: z.enum(["updatedAt", "createdAt", "name"]).optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
+});
+
+export const listActivityEventsQuerySchema = z.object({
+  limit: z.number().int().positive().max(100).optional(),
+});
+
+export const listActivityEventsResponseSchema = z.object({
+  ok: z.literal(true),
+  data: z.array(activityEventSchema),
 });
 
 export const createProjectInputSchema = z.object({
@@ -96,6 +105,8 @@ export const meResponseSchema = z.object({
 export type ApiError = z.infer<typeof apiErrorSchema>;
 export type ListProjectsQuery = z.infer<typeof listProjectsQuerySchema>;
 export type ListProjectsResponse = z.infer<typeof listProjectsResponseSchema>;
+export type ListActivityEventsQuery = z.infer<typeof listActivityEventsQuerySchema>;
+export type ListActivityEventsResponse = z.infer<typeof listActivityEventsResponseSchema>;
 export type CreateProjectInput = z.infer<typeof createProjectInputSchema>;
 export type CreateProjectResponse = z.infer<typeof createProjectResponseSchema>;
 export type GetProjectResponse = z.infer<typeof getProjectResponseSchema>;

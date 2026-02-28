@@ -67,6 +67,19 @@ export const exportSchema = z.object({
   exportedAt: z.string(),
 });
 
+export const activityActionSchema = z.enum(["project.created", "project.updated", "project.deleted"]);
+
+export const activityEventSchema = z.object({
+  id: z.string(),
+  action: activityActionSchema,
+  resourceType: z.literal("project"),
+  resourceId: z.string(),
+  resourceName: z.string(),
+  actorId: z.string(),
+  actorName: z.string(),
+  occurredAt: z.string(),
+});
+
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 export type ProjectType = z.infer<typeof projectTypeSchema>;
 export type Project = z.infer<typeof projectSchema>;
@@ -77,3 +90,5 @@ export type JobStatus = z.infer<typeof jobStatusSchema>;
 export type Job = z.infer<typeof jobSchema>;
 export type ExportFormat = z.infer<typeof exportFormatSchema>;
 export type Export = z.infer<typeof exportSchema>;
+export type ActivityAction = z.infer<typeof activityActionSchema>;
+export type ActivityEvent = z.infer<typeof activityEventSchema>;
